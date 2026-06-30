@@ -14,20 +14,27 @@ import Dashboard from './pages/admin/Dashboard'
 import AddShows from './pages/admin/AddShows'
 import ListShows from './pages/admin/ListShows'
 import ListBookings from './pages/admin/ListBookings'
+import VenueManager from './pages/admin/VenueManager'
+import OrganiserLayout from './pages/organiser/OrganiserLayout'
+import OrganiserOnboard from './pages/organiser/OrganiserOnboard'
+import OrganiserDashboard from './pages/organiser/OrganiserDashboard'
+import OrganiserAddShow from './pages/organiser/OrganiserAddShow'
 import { useAppContext } from './context/AppContext'
 import { SignIn } from '@clerk/clerk-react'
 import Loading from './components/Loading'
 
 const App = () => {
 
-  const isAdminRoute = useLocation().pathname.startsWith('/admin')
+  const location = useLocation()
+  const isAdminRoute = location.pathname.startsWith('/admin')
+  const isOrganiserRoute = location.pathname.startsWith('/organiser') && location.pathname !== '/organiser/onboard'
 
   const { user } = useAppContext()
 
   return (
     <>
       <Toaster />
-      {!isAdminRoute && <Navbar/>}
+      {!isAdminRoute && !isOrganiserRoute && <Navbar/>}
       <Routes>
         <Route path='/' element={<Home/>} />
         <Route path='/movies' element={<Movies/>} />
@@ -37,6 +44,13 @@ const App = () => {
         <Route path='/loading/:nextUrl' element={<Loading/>} />
 
         <Route path='/favorite' element={<Favorite/>} />
+
+        <Route path='/organiser/onboard' element={<OrganiserOnboard/>} />
+        <Route path='/organiser' element={<OrganiserLayout/>}>
+          <Route index element={<OrganiserDashboard/>}/>
+          <Route path="add-show" element={<OrganiserAddShow/>}/>
+        </Route>
+
         <Route path='/admin/*' element={user ? <Layout/> : (
           <div className='min-h-screen flex justify-center items-center'>
             <SignIn fallbackRedirectUrl={'/admin'} />
@@ -46,9 +60,10 @@ const App = () => {
           <Route path="add-shows" element={<AddShows/>}/>
           <Route path="list-shows" element={<ListShows/>}/>
           <Route path="list-bookings" element={<ListBookings/>}/>
+          <Route path="venues" element={<VenueManager/>}/>
         </Route>
       </Routes>
-       {!isAdminRoute && <Footer />}
+       {!isAdminRoute && !isOrganiserRoute && <Footer />}
     </>
   )
 }

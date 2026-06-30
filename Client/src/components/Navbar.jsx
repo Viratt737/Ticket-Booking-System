@@ -13,7 +13,7 @@ const Navbar = () => {
 
  const navigate = useNavigate()
 
- const {favoriteMovies} = useAppContext()
+ const {favoriteMovies, isOrganiser} = useAppContext()
 
   return (
     <div className='fixed top-0 left-0 z-50 w-full flex items-center justify-between px-6 md:px-16 lg:px-36 py-5'>
@@ -30,6 +30,7 @@ const Navbar = () => {
         <Link onClick={()=> {scrollTo(0,0); setIsOpen(false)}} to='/'>Theaters</Link>
         <Link onClick={()=> {scrollTo(0,0); setIsOpen(false)}} to='/'>Releases</Link>
        {favoriteMovies.length > 0 && <Link onClick={()=> {scrollTo(0,0); setIsOpen(false)}} to='/favorite'>Favorites</Link>}
+       {user && <Link onClick={()=> {scrollTo(0,0); setIsOpen(false)}} to={isOrganiser ? '/organiser' : '/organiser/onboard'}>{isOrganiser ? 'Organiser Dashboard' : 'Become an Organiser'}</Link>}
       </div>
 
     <div className='flex items-center gap-8'>
