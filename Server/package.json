@@ -23,6 +23,8 @@
     "mongoose": "^9.7.3",
     "nodemailer": "^9.0.1",
     "nodemon": "^3.1.14",
+    "qrcode": "^1.5.4",
+    "stripe": "^17.7.0",
     "svix": "^1.96.1"
   }
 }

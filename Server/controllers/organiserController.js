@@ -3,6 +3,7 @@ import Venue from "../models/Venue.js";
 import Show from "../models/Show.js";
 import Booking from "../models/Booking.js";
 import { ensureMovieExists } from "./showController.js";
+import { buildSeatsFromLayout } from "../configs/seatHelper.js";
 
 export const registerOrganiser = async (req, res) => {
     try {
@@ -44,13 +45,17 @@ export const createOrganiserShow = async (req, res) => {
 
         const basePrice = categoryPricing[0]?.price || 0;
 
+        // Build seat map from venue layout
+        const seats = buildSeatsFromLayout(venue.layout, categoryPricing);
+
         const show = await Show.create({
             movie: movieId,
             venue: venueId,
             organiser: userId,
             showDateTime: new Date(showDateTime),
             showPrice: basePrice,
-            categoryPricing
+            categoryPricing,
+            seats
         });
 
         res.json({ success: true, show, message: "Show created successfully" });
@@ -81,6 +86,8 @@ export const getOrganiserDashboard = async (req, res) => {
             movieTitle: show.movie?.title,
             venueName: show.venue?.name,
             showDateTime: show.showDateTime,
+            totalSeats: show.seats.length,
+            bookedSeats: show.seats.filter(s => s.status === 'booked').length,
             totalBookings: countByShow[show._id.toString()] || 0,
             revenue: revenueByShow[show._id.toString()] || 0
         }));

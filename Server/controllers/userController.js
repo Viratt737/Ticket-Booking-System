@@ -10,7 +10,10 @@ export const getUserBookings = async (req, res)=>{
 
         const bookings = await Booking.find({user}).populate({
             path: "show",
-            populate: {path: "movie"}
+            populate: [
+                {path: "movie"},
+                {path: "venue", select: "name location"}
+            ]
         }).sort({createdAt: -1 })
         res.json({success: true, bookings})
     } catch (error) {
