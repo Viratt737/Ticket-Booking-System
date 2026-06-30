@@ -15,8 +15,7 @@ const WAITLIST_OFFER_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 // Clerk user sync functions
 // ─────────────────────────────────────────────────────────────────────────────
 const syncUserCreation = inngest.createFunction(
-    { id: 'sync-user-from-clerk' },
-    { event: 'clerk/user.created' },
+    { id: 'sync-user-from-clerk', triggers: [{ event: 'clerk/user.created' }] },
     async ({ event }) => {
         const { id, first_name, last_name, email_addresses, image_url } = event.data;
         const userData = {
@@ -30,8 +29,7 @@ const syncUserCreation = inngest.createFunction(
 )
 
 const syncUserDeletion = inngest.createFunction(
-    { id: 'delete-user-with-clerk' },
-    { event: 'clerk/user.deleted' },
+    { id: 'delete-user-with-clerk', triggers: [{ event: 'clerk/user.deleted' }] },
     async ({ event }) => {
         const { id } = event.data;
         await User.findByIdAndDelete(id);
@@ -39,8 +37,7 @@ const syncUserDeletion = inngest.createFunction(
 )
 
 const syncUserUpdation = inngest.createFunction(
-    { id: 'update-user-from-clerk' },
-    { event: 'clerk/user.updated' },
+    { id: 'update-user-from-clerk', triggers: [{ event: 'clerk/user.updated' }] },
     async ({ event }) => {
         const { id, first_name, last_name, email_addresses, image_url } = event.data;
         const userData = {
@@ -55,11 +52,9 @@ const syncUserUpdation = inngest.createFunction(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Unpaid booking cleanup — runs 10 min after booking created
-// If payment was not completed, delete the booking and free the held seats.
 // ─────────────────────────────────────────────────────────────────────────────
 const releaseSeatsAndDeleteBooking = inngest.createFunction(
-    { id: 'release-seats-delete-booking' },
-    { event: "app/checkpayment" },
+    { id: 'release-seats-delete-booking', triggers: [{ event: 'app/checkpayment' }] },
     async ({ event, step }) => {
         const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
         await step.sleepUntil('wait-for-10-minutes', tenMinutesLater);
@@ -80,9 +75,7 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
                         "seats.$[elem].holdExpiresAt": null
                     }
                 },
-                {
-                    arrayFilters: [{ "elem.seatId": { $in: booking.bookedSeats } }]
-                }
+                { arrayFilters: [{ "elem.seatId": { $in: booking.bookedSeats } }] }
             );
 
             await Booking.findByIdAndDelete(booking._id);
@@ -96,10 +89,7 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
                         .map(s => s.category)
                 )];
                 for (const category of freedCategories) {
-                    await inngest.send({
-                        name: "app/waitlist.process",
-                        data: { showId: booking.show.toString(), category }
-                    });
+                    await inngest.send({ name: "app/waitlist.process", data: { showId: booking.show.toString(), category } });
                 }
             }
         });
@@ -107,12 +97,10 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sweep expired holds — runs every 5 minutes via cron
-// Finds any held seats whose holdExpiresAt has passed and resets them.
+// Sweep expired holds — every 5 minutes
 // ─────────────────────────────────────────────────────────────────────────────
 const sweepExpiredHolds = inngest.createFunction(
-    { id: 'sweep-expired-holds' },
-    { cron: "*/5 * * * *" },
+    { id: 'sweep-expired-holds', triggers: [{ cron: '*/5 * * * *' }] },
     async ({ step }) => {
         const now = new Date();
 
@@ -126,9 +114,7 @@ const sweepExpiredHolds = inngest.createFunction(
                         "seats.$[elem].holdExpiresAt": null
                     }
                 },
-                {
-                    arrayFilters: [{ "elem.status": "held", "elem.holdExpiresAt": { $lte: now } }]
-                }
+                { arrayFilters: [{ "elem.status": "held", "elem.holdExpiresAt": { $lte: now } }] }
             );
             return { modifiedCount: updateResult.modifiedCount };
         });
@@ -138,12 +124,11 @@ const sweepExpiredHolds = inngest.createFunction(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Booking confirmation email with QR code — triggered after successful payment
+// Booking confirmation email with QR code
 // ─────────────────────────────────────────────────────────────────────────────
 const sendBookingConfirmationEmail = inngest.createFunction(
-    { id: "send-booking-confirmation-email" },
-    { event: "app/show.booked" },
-    async ({ event, step }) => {
+    { id: "send-booking-confirmation-email", triggers: [{ event: "app/show.booked" }] },
+    async ({ event }) => {
         const { bookingId } = event.data;
 
         const booking = await Booking.findById(bookingId).populate({
@@ -175,7 +160,6 @@ const sendBookingConfirmationEmail = inngest.createFunction(
                     <div style="padding: 32px;">
                         <p style="font-size: 16px; color: #d1d5db;">Hi <strong>${booking.user.name}</strong>,</p>
                         <p style="color: #d1d5db;">Your booking for <strong style="color: #3B82F6;">"${booking.show.movie.title}"</strong> is confirmed.</p>
-
                         <div style="background: #1c1c1e; border-radius: 8px; padding: 20px; margin: 24px 0; border: 1px solid #3B82F6;">
                             <table style="width: 100%; border-collapse: collapse;">
                                 <tr><td style="padding: 6px 0; color: #9ca3af;">📅 Date</td><td style="color: #fff; text-align: right;">${showDate}</td></tr>
@@ -185,12 +169,10 @@ const sendBookingConfirmationEmail = inngest.createFunction(
                                 <tr><td style="padding: 6px 0; color: #9ca3af;">🔖 Booking ID</td><td style="color: #fff; text-align: right; font-size: 12px;">${bookingId}</td></tr>
                             </table>
                         </div>
-
                         <div style="text-align: center; margin: 24px 0;">
                             <p style="color: #9ca3af; margin-bottom: 12px; font-size: 14px;">Scan this QR code at the venue</p>
                             <img src="${qrDataUrl}" alt="QR Code" style="border: 4px solid #3B82F6; border-radius: 8px; width: 180px; height: 180px;" />
                         </div>
-
                         <p style="color: #6b7280; font-size: 13px;">Enjoy the show! 🍿</p>
                         <p style="color: #6b7280; font-size: 13px;">Thanks for booking with us,<br>— QuickShow Team</p>
                     </div>
@@ -201,11 +183,10 @@ const sendBookingConfirmationEmail = inngest.createFunction(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Show reminders — every 8 hours, emails users with shows in next 8 hours
+// Show reminders — every 8 hours
 // ─────────────────────────────────────────────────────────────────────────────
 const sendShowReminders = inngest.createFunction(
-    { id: "send-show-reminders" },
-    { cron: "0 */8 * * *" },
+    { id: "send-show-reminders", triggers: [{ cron: "0 */8 * * *" }] },
     async ({ step }) => {
         const now = new Date();
         const in8Hours = new Date(now.getTime() + 8 * 60 * 60 * 1000);
@@ -217,32 +198,21 @@ const sendShowReminders = inngest.createFunction(
             }).populate('movie');
 
             const tasks = [];
-
             for (const show of shows) {
                 if (!show.movie) continue;
-
-                // Get unique bookers from seats array
                 const userIds = [...new Set(
                     show.seats.filter(s => s.status === 'booked' && s.bookedBy).map(s => s.bookedBy)
                 )];
                 if (userIds.length === 0) continue;
-
                 const users = await User.find({ _id: { $in: userIds } }).select("name email");
                 for (const user of users) {
-                    tasks.push({
-                        userEmail: user.email,
-                        userName: user.name,
-                        movieTitle: show.movie.title,
-                        showTime: show.showDateTime,
-                    });
+                    tasks.push({ userEmail: user.email, userName: user.name, movieTitle: show.movie.title, showTime: show.showDateTime });
                 }
             }
             return tasks;
         });
 
-        if (reminderTasks.length === 0) {
-            return { sent: 0, message: "No reminders to send." };
-        }
+        if (reminderTasks.length === 0) return { sent: 0 };
 
         const results = await step.run('send-all-reminders', async () => {
             return await Promise.allSettled(
@@ -251,11 +221,8 @@ const sendShowReminders = inngest.createFunction(
                     subject: `Reminder: Your movie "${task.movieTitle}" starts soon!`,
                     body: `<div style="font-family: Arial, sans-serif; padding: 20px;">
                             <h2>Hello ${task.userName},</h2>
-                            <p>This is a quick reminder that your movie:</p>
-                            <h3 style="color: #3B82F6;">"${task.movieTitle}"</h3>
-                            <p>is scheduled for <strong>${new Date(task.showTime).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</strong> at 
-                            <strong>${new Date(task.showTime).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</strong>.</p>
-                            <p>It starts in approximately <strong>8 hours</strong> — make sure you're ready!</p>
+                            <p>Your movie <strong style="color: #3B82F6;">"${task.movieTitle}"</strong> starts in approximately 8 hours.</p>
+                            <p>📅 ${new Date(task.showTime).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} at ${new Date(task.showTime).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
                             <p>Enjoy the show!<br>QuickShow Team</p>
                         </div>`
                 }))
@@ -271,67 +238,52 @@ const sendShowReminders = inngest.createFunction(
 // New show notifications
 // ─────────────────────────────────────────────────────────────────────────────
 const sendNewShowNotifications = inngest.createFunction(
-    { id: "send-new-show-notifications" },
-    { event: "app/show.added" },
+    { id: "send-new-show-notifications", triggers: [{ event: "app/show.added" }] },
     async ({ event }) => {
         const { movieTitle } = event.data;
         const users = await User.find({});
-
         for (const user of users) {
             await sendEmail({
                 to: user.email,
                 subject: `🎬 New Show Added: ${movieTitle}`,
                 body: `<div style="font-family: Arial, sans-serif; padding: 20px;">
                         <h2>Hi ${user.name},</h2>
-                        <p>We've just added a new show to our library:</p>
-                        <h3 style="color: #3B82F6;">"${movieTitle}"</h3>
+                        <p>We've just added a new show: <strong style="color: #3B82F6;">"${movieTitle}"</strong></p>
                         <p>Visit our website to book your seats!</p>
                         <p>Thanks,<br>QuickShow Team</p>
                     </div>`
             });
         }
-
         return { message: "Notifications sent." };
     }
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Waitlist processor — triggered when seats are freed (cancellation / expiry)
-// Finds the next waiting customer, places a hold in their name, emails them.
+// Waitlist processor
 // ─────────────────────────────────────────────────────────────────────────────
 const processWaitlist = inngest.createFunction(
-    { id: "process-waitlist" },
-    { event: "app/waitlist.process" },
+    { id: "process-waitlist", triggers: [{ event: "app/waitlist.process" }] },
     async ({ event, step }) => {
         const { showId, category } = event.data;
 
         const offerResult = await step.run('find-and-offer-seat', async () => {
             const now = new Date();
 
-            // Find the next waiting entry (lowest position)
-            const entry = await Waitlist.findOne({
-                show: showId,
-                category,
-                status: 'waiting'
-            }).sort({ position: 1 });
-
+            const entry = await Waitlist.findOne({ show: showId, category, status: 'waiting' }).sort({ position: 1 });
             if (!entry) return null;
 
-            // Find an available seat in this category
             const show = await Show.findById(showId).populate('movie');
             if (!show) return null;
 
             const availableSeat = show.seats.find(s =>
                 s.category === category &&
-                (s.status === 'available' ||
-                    (s.status === 'held' && s.holdExpiresAt && s.holdExpiresAt <= now))
+                (s.status === 'available' || (s.status === 'held' && s.holdExpiresAt && s.holdExpiresAt <= now))
             );
-
             if (!availableSeat) return null;
 
             const offerExpiry = new Date(Date.now() + WAITLIST_OFFER_WINDOW_MS);
 
-            // Atomically hold the seat for this waitlist user
+            // Atomically hold the seat for the waitlist user
             const result = await Show.findOneAndUpdate(
                 {
                     _id: showId,
@@ -339,10 +291,7 @@ const processWaitlist = inngest.createFunction(
                         seats: {
                             $elemMatch: {
                                 seatId: availableSeat.seatId,
-                                $or: [
-                                    { status: 'booked' },
-                                    { status: 'held', holdExpiresAt: { $gt: now } }
-                                ]
+                                $or: [{ status: 'booked' }, { status: 'held', holdExpiresAt: { $gt: now } }]
                             }
                         }
                     }]
@@ -354,22 +303,16 @@ const processWaitlist = inngest.createFunction(
                         "seats.$[elem].holdExpiresAt": offerExpiry
                     }
                 },
-                {
-                    arrayFilters: [{ "elem.seatId": availableSeat.seatId }],
-                    new: true
-                }
+                { arrayFilters: [{ "elem.seatId": availableSeat.seatId }], new: true }
             );
-
             if (!result) return null;
 
-            // Update waitlist entry
             await Waitlist.findByIdAndUpdate(entry._id, {
                 status: 'offered',
                 offeredSeatId: availableSeat.seatId,
                 offerExpiresAt: offerExpiry
             });
 
-            // Send email to user
             const user = await User.findById(entry.user);
             if (user) {
                 const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -378,20 +321,16 @@ const processWaitlist = inngest.createFunction(
 
                 await sendEmail({
                     to: user.email,
-                    subject: `🎟 Your waitlisted seat for "${show.movie.title}" is now available!`,
-                    body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #09090B; color: #ffffff; border-radius: 12px; padding: 32px;">
+                    subject: `🎟 Your waitlisted seat for "${show.movie.title}" is available!`,
+                    body: `<div style="font-family: Arial, sans-serif; max-width: 600px; padding: 32px; background: #09090B; color: #fff; border-radius: 12px;">
                             <h2 style="color: #3B82F6;">Great news, ${user.name}!</h2>
-                            <p>A seat has become available in the <strong>${category}</strong> category for:</p>
-                            <h3 style="color: #3B82F6;">"${show.movie.title}"</h3>
-                            <p>📅 ${new Date(show.showDateTime).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'full' })}</p>
-                            <p>⏰ ${new Date(show.showDateTime).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', timeStyle: 'short' })}</p>
+                            <p>A <strong>${category}</strong> seat is available for <strong>"${show.movie.title}"</strong></p>
                             <p>🪑 Seat: <strong>${availableSeat.seatId}</strong></p>
-                            <p style="color: #ef4444;">⚠️ This offer expires in <strong>30 minutes</strong>. Act quickly!</p>
-                            <a href="${offerLink}" style="display: inline-block; margin-top: 16px; padding: 12px 24px; background: #3B82F6; color: white; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                            <p style="color: #ef4444;">⚠️ This offer expires in <strong>30 minutes</strong>.</p>
+                            <a href="${offerLink}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#3B82F6;color:white;border-radius:8px;text-decoration:none;font-weight:bold;">
                                 Claim Your Seat
                             </a>
-                            <p style="margin-top: 24px; color: #6b7280; font-size: 13px;">If you don't claim it in time, the next person on the waitlist will be notified.</p>
-                            <p style="color: #6b7280; font-size: 13px;">— QuickShow Team</p>
+                            <p style="margin-top:24px;color:#6b7280;font-size:13px;">— QuickShow Team</p>
                         </div>`
                 });
             }
@@ -401,15 +340,12 @@ const processWaitlist = inngest.createFunction(
 
         if (!offerResult) return { message: "No waitlist entries or no available seats" };
 
-        // Sleep until offer expires, then check if it was claimed
-        const offerExpiry = new Date(offerResult.offerExpiry);
-        await step.sleepUntil('wait-for-offer-expiry', offerExpiry);
+        await step.sleepUntil('wait-for-offer-expiry', new Date(offerResult.offerExpiry));
 
         await step.run('check-offer-claimed', async () => {
             const entry = await Waitlist.findById(offerResult.entryId);
-            if (!entry || entry.status !== 'offered') return; // already fulfilled or manually resolved
+            if (!entry || entry.status !== 'offered') return;
 
-            // Offer expired — mark entry as expired, free the seat
             await Waitlist.findByIdAndUpdate(offerResult.entryId, { status: 'expired' });
 
             await Show.updateOne(
@@ -421,16 +357,10 @@ const processWaitlist = inngest.createFunction(
                         "seats.$[elem].holdExpiresAt": null
                     }
                 },
-                {
-                    arrayFilters: [{ "elem.seatId": offerResult.seatId, "elem.heldBy": entry.user }]
-                }
+                { arrayFilters: [{ "elem.seatId": offerResult.seatId, "elem.heldBy": entry.user }] }
             );
 
-            // Move to next person in queue
-            await inngest.send({
-                name: "app/waitlist.process",
-                data: { showId, category }
-            });
+            await inngest.send({ name: "app/waitlist.process", data: { showId, category } });
         });
     }
 )

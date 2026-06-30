@@ -7,13 +7,19 @@ import { buildSeatsFromLayout } from "../configs/seatHelper.js";
 
 export const registerOrganiser = async (req, res) => {
     try {
-        const { userId } = req.auth();
+        const auth = req.auth();
+        console.log("Register Organiser Auth State:", auth);
+        const { userId } = auth;
+        if (!userId) {
+            return res.json({ success: false, message: "No user ID found in request auth state" });
+        }
         const user = await clerkClient.users.getUser(userId);
         await clerkClient.users.updateUserMetadata(userId, {
             privateMetadata: { ...user.privateMetadata, role: 'organiser' }
         });
         res.json({ success: true, message: "You're now registered as an organiser" });
     } catch (error) {
+        console.error("Register Organiser Error:", error);
         res.json({ success: false, message: error.message });
     }
 }
